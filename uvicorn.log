@@ -1,0 +1,22 @@
+INFO:     Will watch for changes in these directories: ['/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [41023] using WatchFiles
+INFO:     Started server process [41087]
+INFO:     Waiting for application startup.
+2026-03-26 03:46:59,925 WARNING [buglerock.module_a] GCP Pub/Sub authentication failed; falling back to IMAP polling every 2 minutes.
+INFO:     Application startup complete.
+2026-03-26 03:46:59,925 INFO [buglerock.module_a] Polling IMAP inbox for new messages (placeholder).
+2026-03-26 03:47:02,655 INFO [buglerock.module_a] Fireflies webhook received: attendees=2, topics=2, action_items=2
+2026-03-26 03:47:07,363 INFO [httpx] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:57340 - "POST /api/fireflies-webhook HTTP/1.1" 200 OK
+2026-03-26 03:47:20,022 INFO [buglerock.module_a] Fireflies webhook received: attendees=2, topics=2, action_items=2
+2026-03-26 03:47:21,289 INFO [httpx] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:     127.0.0.1:57347 - "POST /api/fireflies-webhook HTTP/1.1" 200 OK
+2026-03-26 03:48:59,927 INFO [buglerock.module_a] Polling IMAP inbox for new messages (placeholder).
+2026-03-26 03:50:59,931 INFO [buglerock.module_a] Polling IMAP inbox for new messages (placeholder).
+2026-03-26 03:52:59,934 INFO [buglerock.module_a] Polling IMAP inbox for new messages (placeholder).
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [41087]
+INFO:     Stopping reloader process [41023]
