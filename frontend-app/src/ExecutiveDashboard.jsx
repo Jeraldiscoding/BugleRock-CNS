@@ -88,7 +88,7 @@ const mockEscalations = [
   },
   {
     id: 2,
-    client: 'Thompson Family',
+    client: 'LexCorp',
     dept: 'Investments',
     riskLabel: 'Action Required',
     riskText: 'Urgent Portfolio Rebalance requested. Routed to Jeremy Sim (Investments).',
@@ -337,7 +337,7 @@ export default function ExecutiveDashboard() {
                              : 'text-slate-900 dark:text-slate-100 group-hover:text-primary'
                         }`}>
                           Bruce Wayne
-                          {liveData.clients?.['Bruce Wayne']?.status === 'Compliance Hold' && " 🚨"}
+                          {liveData.clients?.['Bruce Wayne']?.status === 'Compliance Hold' && " [ALERT]"}
                         </div>
                         <p className="text-xs text-slate-500 mt-2 line-clamp-2">{liveData.clients?.['Bruce Wayne']?.module_a_insight || "Module A: Evaluating intent from email..."}</p>
                       </div>
@@ -380,11 +380,11 @@ export default function ExecutiveDashboard() {
                       </div>
                       
                       <div 
-                        onClick={() => handleViewClient({ client: 'Thompson Family', dept: selectionContext.name })}
+                        onClick={() => handleViewClient({ client: 'LexCorp', dept: selectionContext.name })}
                         className="bg-white dark:bg-slate-950 p-4 rounded-lg border border-tertiary/40 shadow-sm hover:border-tertiary hover:shadow-md cursor-pointer transition-all group ring-1 ring-tertiary/10"
                       >
                         <div className="flex items-start justify-between">
-                          <div className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-tertiary transition-colors">Thompson Family</div>
+                          <div className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-tertiary transition-colors">LexCorp</div>
                           <span className="flex h-2 w-2 relative">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-tertiary"></span>
