@@ -1,14 +1,18 @@
 import asyncio
 import logging
+import os
 from typing import List, Optional
+
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from anthropic import Anthropic
-from ai_processor import extract_signal_from_transcript
-from crm_manager import CRMManager
-from event_publisher import EventPublisher
+from .ai_processor import extract_signal_from_transcript
+from .crm_manager import CRMManager
+from .event_publisher import EventPublisher
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,6 +26,13 @@ anthropic_client = Anthropic()
 
 app = FastAPI(title="BugleRock Smart Inbox - Module A")
 
+
+class EmailWebhookPayload(BaseModel):
+    """Expected Gmail webhook payload."""
+    sender: str = Field(description="Email sender address")
+    subject: str = Field(description="Email subject line")
+    body: str = Field(description="Email body content")
+    attachments: List[str] = Field(default_factory=list)
 
 class FirefliesWebhookPayload(BaseModel):
     """Expected Fireflies webhook payload."""
@@ -93,6 +104,32 @@ async def on_startup() -> None:
 
     asyncio.create_task(initialize_gmail_ingestion())
 
+
+@app.post("/api/gmail-webhook")
+async def gmail_webhook(payload: EmailWebhookPayload):
+    """Accept Gmail push notifications.
+    Passes email body to the unified AI processor.
+    """
+    logger.info(f"Received email from: {payload.sender} with subject: {payload.subject}")
+    
+    if not payload.body:
+        raise HTTPException(status_code=400, detail="body is required")
+
+    results = extract_signal_from_transcript(
+        payload.body,
+        client=anthropic_client,
+        crm_manager=crm_manager,
+        email_address=payload.sender,
+        company_name=None, # Will let AI extract it or derive from domain
+    )
+
+    return {
+        "status": "accepted",
+        "message": "Email received",
+        "sender": payload.sender,
+        "subject": payload.subject,
+        "extractions": [r.model_dump() for r in results],
+    }
 
 @app.post("/api/fireflies-webhook")
 async def fireflies_webhook(payload: FirefliesWebhookPayload):

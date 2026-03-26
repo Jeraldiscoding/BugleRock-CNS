@@ -23,6 +23,15 @@ Build endpoints/listeners to capture incoming data.
     * [cite_start]*Fallback Logic:* If GCP setup fails or takes too long, implement a `while` loop that polls via IMAP every 2 minutes[cite: 22, 94].
     * [cite_start]*Data to extract:* Sender, subject, body, attachments[cite: 22].
 
+### Phase 1.5: Bidirectional Inbox Organization
+Our email ingestion pipeline must actively organize the human advisor's inbox based on AI classification while preserving 'Unread' states.
+1.  **Webhook Response Update (FastAPI):**
+    * The `POST /api/gmail-webhook` endpoint must no longer just return `{status: success}`. It must wait for the Claude classification to finish and return the actual classification data in the HTTP response (specifically the `urgency` and `type`).
+2.  **IMAP Listener Upgrades (`gmail_listener.py`):**
+    * **The Peek Command:** The listener must fetch emails using `(BODY.PEEK[])` instead of `(RFC822)`. This ensures Gmail does NOT apply the `\Seen` flag, leaving the email unread for the human advisor.
+    * **Folder Routing:** After the listener sends the POST request to the FastAPI server, it must read the JSON response. Based on the returned `urgency` or `type`, it must logically map and route the email to a specific Gmail label (e.g., 'Urgent', 'Prospects', 'Internal').
+    * **IMAP Move Logic:** Since IMAP doesn't have a simple 'move' command, the script must perform the move by using `imap.copy(email_id, 'Destination_Label')` followed immediately by `imap.store(email_id, '+FLAGS', '\\Deleted')` (and `imap.expunge()`) to remove it from the main INBOX.
+
 ### Phase 2: AI Processing (Claude API)
 [cite_start]Send the captured text to Claude for structured extraction[cite: 24].
 1.  **Prompt Engineering:** Force Claude to return strict JSON.
