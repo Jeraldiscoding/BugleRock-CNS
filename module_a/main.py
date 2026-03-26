@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 from typing import List, Optional
+from email.utils import parseaddr
 
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
@@ -115,12 +116,18 @@ async def gmail_webhook(payload: EmailWebhookPayload):
     if not payload.body:
         raise HTTPException(status_code=400, detail="body is required")
 
+    # Extract display name from sender string e.g. "John Doe <john@doe.com>" -> "John Doe", "john@doe.com"
+    display_name, email_addy = parseaddr(payload.sender)
+    if not email_addy:
+        email_addy = payload.sender # fallback to original if parsing fails
+        
     results = extract_signal_from_transcript(
         payload.body,
         client=anthropic_client,
         crm_manager=crm_manager,
-        email_address=payload.sender,
+        email_address=email_addy,
         company_name=None, # Will let AI extract it or derive from domain
+        sender_name=display_name if display_name else None,
     )
 
     return {

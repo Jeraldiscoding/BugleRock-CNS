@@ -2,6 +2,7 @@ import os
 import requests
 import json
 import logging
+import time
 from dotenv import load_dotenv
 from requests.exceptions import RequestException
 
@@ -12,6 +13,10 @@ logger = logging.getLogger(__name__)
 class ZohoAuthenticator:
     """Handles OAuth 2.0 Access Token generation using the stored Refresh Token."""
     
+    # Class-level cache to share token across instances during app lifecycle
+    _cached_token = None
+    _token_expiry = 0
+
     def __init__(self):
         self.client_id = os.environ.get("ZOHO_CLIENT_ID")
         self.client_secret = os.environ.get("ZOHO_CLIENT_SECRET")
@@ -23,6 +28,10 @@ class ZohoAuthenticator:
 
     def get_access_token(self):
         """Exchange the refresh token for a fresh access token."""
+        # Use cached token if valid (buffer of 60 seconds)
+        if ZohoAuthenticator._cached_token and time.time() < ZohoAuthenticator._token_expiry - 60:
+            return ZohoAuthenticator._cached_token
+
         url = f"{self.domain}/oauth/v2/token"
         
         payload = {
@@ -43,7 +52,11 @@ class ZohoAuthenticator:
             
             if "access_token" in data:
                 logger.info("Successfully generated new Zoho Access Token.")
-                return data["access_token"]
+                ZohoAuthenticator._cached_token = data["access_token"]
+                # Usually valid for 1 hour (3600 seconds)
+                expires_in = data.get("expires_in", 3600)
+                ZohoAuthenticator._token_expiry = time.time() + expires_in
+                return ZohoAuthenticator._cached_token
             else:
                 logger.error(f"Failed to get access token. Response: {data}")
                 return None

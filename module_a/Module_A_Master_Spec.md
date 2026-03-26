@@ -44,10 +44,12 @@ Our email ingestion pipeline must actively organize the human advisor's inbox ba
 
 ### Phase 3: Deduplication Cache & Zoho CRM
 Do NOT write to Zoho without checking the cache first.
-1.  [cite_start]**SQLite Dedup Cache:** Create a table with a composite key of `email_address + company_name`[cite: 100]. 
+1.  **SQLite Dedup Cache:** Create a table with a composite key of `email_address + company_name`. 
     * *Edge Case Handling:* If the sender uses a personal email (e.g., @gmail.com), rely on the `company_name` extracted by Claude from the email body/signature to verify identity.
-2.  [cite_start]**Zoho Operations:** * Auto-create or update records for Contacts, Deals, Notes, Tasks[cite: 25].
-    * [cite_start]Map extracted meeting action items specifically to Zoho CRM Tasks[cite: 32].
+    * *Sender Name Parsing:* Parse the `From:` header format (e.g., `Name <email@domain.com>`) correctly during ingestion. Fall back to Claude's extracted `person` entity if no distinct display name exists. This prevents "Unknown Contact" from cluttering the CRM, ensuring proper matching down the line.
+2.  **Zoho Operations:** * Auto-create or update records for Contacts, Deals, Notes, Tasks.
+    * Map extracted meeting action items specifically to Zoho CRM Tasks.
+    * Enhance payload mapping functions: Ensure robust mapping of description fields to compile comprehensive contexts across contact, deal, and task views, giving human advisors total situational awareness within Zoho.
 
 ### Phase 4: Event Publishing
 1.  [cite_start]**The Event Bus:** Connect to the shared SQLite event table[cite: 71].

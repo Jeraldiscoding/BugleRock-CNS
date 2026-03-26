@@ -54,6 +54,17 @@ class ZohoClientLive:
             "First_Name": contact_data.get("First_Name", ""),
             "Description": contact_data.get("Description", "")
         }
+        
+        # Add optional additional details mapped by AI
+        if "Phone" in contact_data:
+            payload["Phone"] = contact_data["Phone"]
+        if "Mobile" in contact_data:
+            payload["Mobile"] = contact_data["Mobile"]
+        if "Title" in contact_data:
+            payload["Title"] = contact_data["Title"]
+        if "Account_Name" in contact_data:
+            payload["Account_Name"] = contact_data["Account_Name"]
+
         # Zoho required Last_Name basically at all times for standard configurations.
         zoho_id = self._call("Contacts", payload)
         return zoho_id
@@ -69,6 +80,9 @@ class ZohoClientLive:
         
         if "Contact_Name" in deal_data:
             payload["Contact_Name"] = deal_data["Contact_Name"] # Reference to standard Contact ID
+            
+        if "Account_Name" in deal_data:
+            payload["Account_Name"] = deal_data["Account_Name"]
             
         return self._call("Deals", payload)
         

@@ -41,10 +41,12 @@ class Sentiment(str, Enum):
 
 
 class Entities(BaseModel):
-    company_name: Optional[str] = Field(default=None)
-    person: Optional[str] = Field(default=None)
-    deal_reference: Optional[str] = Field(default=None)
-    action_items: List[str] = Field(default_factory=list)
+    company_name: Optional[str] = Field(default=None, description="Company name associated with the contact or email")
+    person: Optional[str] = Field(default=None, description="First and Last name of the person communicating")
+    job_title: Optional[str] = Field(default=None, description="Job title, role, or department mentioned")
+    phone_number: Optional[str] = Field(default=None, description="Phone number or mobile number extracted from signature or text")
+    deal_reference: Optional[str] = Field(default=None, description="Name of the deal, quote, or project")
+    action_items: List[str] = Field(default_factory=list, description="Actionable tasks or requests")
 
 
 class SignalExtraction(BaseModel):
@@ -158,6 +160,7 @@ def extract_signal_from_transcript(
     crm_manager: Optional["CRMManager"] = None,
     email_address: Optional[str] = None,
     company_name: Optional[str] = None,
+    sender_name: Optional[str] = None,
 ) -> List[SignalExtraction]:
     """Process a transcript (chunked if needed) and return per-chunk extractions."""
 
@@ -183,6 +186,7 @@ def extract_signal_from_transcript(
                     extraction,
                     email_address=email_address,
                     company_name=company,
+                    sender_name=sender_name,
                 )
                 crm_summaries.append(summary)
 

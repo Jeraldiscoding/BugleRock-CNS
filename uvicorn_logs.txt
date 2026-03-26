@@ -1,14 +1,12 @@
-INFO:     Started server process [2111]
+INFO:     Started server process [73627]
 INFO:     Waiting for application startup.
-2026-03-26 20:15:54,262 [WARNING] GCP Pub/Sub authentication failed; falling back to IMAP polling every 2 minutes.
+2026-03-26 17:41:04,126 WARNING [buglerock.module_a] GCP Pub/Sub authentication failed; falling back to IMAP polling every 2 minutes.
 INFO:     Application startup complete.
-2026-03-26 20:15:54,263 [INFO] Polling IMAP inbox for new messages (placeholder).
+2026-03-26 17:41:04,127 INFO [buglerock.module_a] Polling IMAP inbox for new messages (placeholder).
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-2026-03-26 20:15:56,881 [INFO] Received email from: Sundar Pichai <sundar@apple.com> with subject: Google Tech Expansion
-2026-03-26 20:15:58,938 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
-2026-03-26 20:15:58,966 [INFO] Pushing to Zoho Module: Contacts
-2026-03-26 20:15:59,785 [ERROR] HTTP Request failed: 400 Client Error:  for url: https://accounts.zoho.com/oauth/v2/token
-INFO:     127.0.0.1:57005 - "POST /api/gmail-webhook HTTP/1.1" 500 Internal Server Error
+2026-03-26 17:41:05,750 INFO [buglerock.module_a] Received email from: jerald@example.com with subject: Test
+2026-03-26 17:41:06,085 INFO [httpx] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 404 Not Found"
+INFO:     127.0.0.1:54303 - "POST /api/gmail-webhook HTTP/1.1" 500 Internal Server Error
 ERROR:    Exception in ASGI application
 Traceback (most recent call last):
   File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 419, in run_asgi
@@ -60,27 +58,45 @@ Traceback (most recent call last):
   File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/fastapi/routing.py", line 191, in run_endpoint_function
     return await dependant.call(**values)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS/module_a/main.py", line 124, in gmail_webhook
+  File "/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS/module_a/main.py", line 118, in gmail_webhook
     results = extract_signal_from_transcript(
         payload.body,
-    ...<4 lines>...
-        sender_name=display_name if display_name else None,
+    ...<3 lines>...
+        company_name=None, # Will let AI extract it or derive from domain
     )
-  File "/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS/module_a/ai_processor.py", line 185, in extract_signal_from_transcript
-    summary = crm_manager.upsert_signal(
-        extraction,
+  File "/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS/module_a/ai_processor.py", line 170, in extract_signal_from_transcript
+    extraction = _call_claude_structured(
+        _client,
     ...<2 lines>...
-        sender_name=sender_name,
+        max_tokens=max_completion_tokens,
     )
-  File "/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS/module_a/crm_manager.py", line 253, in upsert_signal
-    contact_id = self.zoho.upsert_contact(contact_payload)
-  File "/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS/module_b/zoho_client_live.py", line 69, in upsert_contact
-    zoho_id = self._call("Contacts", payload)
-  File "/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS/module_b/zoho_client_live.py", line 34, in _call
-    response = requests.post(url, headers=self._get_headers(), json=zoho_payload)
-                                          ~~~~~~~~~~~~~~~~~^^
-  File "/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS/module_b/zoho_client_live.py", line 20, in _get_headers
-    raise ValueError("Could not obtain a Zoho API Access Token")
-ValueError: Could not obtain a Zoho API Access Token
-2026-03-26 20:17:54,264 [INFO] Polling IMAP inbox for new messages (placeholder).
-2026-03-26 20:19:54,268 [INFO] Polling IMAP inbox for new messages (placeholder).
+  File "/Users/jeraldlim/Desktop/BugleRock/BugleRock-CNS/module_a/ai_processor.py", line 111, in _call_claude_structured
+    response = client.messages.create(
+        model=model,
+    ...<18 lines>...
+        tool_choice={"type": "tool", "name": "extract_signal"},
+    )
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/anthropic/_utils/_utils.py", line 282, in wrapper
+    return func(*args, **kwargs)
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/anthropic/resources/messages/messages.py", line 996, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/v1/messages",
+        ^^^^^^^^^^^^^^^
+    ...<30 lines>...
+        stream_cls=Stream[RawMessageStreamEvent],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/anthropic/_base_client.py", line 1364, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/anthropic/_base_client.py", line 1137, in request
+    raise self._make_status_error_from_response(err.response) from None
+anthropic.NotFoundError: Error code: 404 - {'type': 'error', 'error': {'type': 'not_found_error', 'message': 'model: claude-3-haiku-20240307'}, 'request_id': 'req_011CZRUKBR772e6PT2BpUnYY'}
+2026-03-26 17:43:04,129 INFO [buglerock.module_a] Polling IMAP inbox for new messages (placeholder).
+2026-03-26 17:45:04,131 INFO [buglerock.module_a] Polling IMAP inbox for new messages (placeholder).
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [73627]
