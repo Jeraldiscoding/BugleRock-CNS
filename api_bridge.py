@@ -4,28 +4,54 @@ from pydantic import BaseModel
 import anthropic
 import os
 from dotenv import load_dotenv
+import logging
+import traceback
+from datetime import datetime
+from zoneinfo import ZoneInfo
+import threading
+from contextlib import asynccontextmanager
+from slack_bolt import App
+from slack_bolt.adapter.socket_mode import SocketModeHandler
+
+# Initialize Logging
+logging.basicConfig(
+    filename='api_error.log',
+    level=logging.ERROR,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 load_dotenv()
 
-app = FastAPI()
-
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-# Allow React to talk to this API
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # For hackathon only!
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# --- SLACK BOLT SETUP ---
+slack_app = App(token=os.environ.get("SLACK_BOT_TOKEN"))
 
-# In-memory "Database" for the demo
+# In-memory "Database" for the demo API (Shared state)
 demo_state = {
     "kpis": {
         "total_aum": "$1.2B",
         "triage_volume": 842,
         "risk_flags": 3
+    },
+    "aggregated_briefing": {
+        "module_a": {"new_contacts": 3},
+        "module_b": {"prospect_scored": 1, "score": 87},
+        "module_c": {"meetings_filed": 2}
+    },
+    "rich_briefing": {
+        "leads": [
+            {"name": "LexCorp Family Office", "advisor": "Subiksha", "aum": "$120M", "score": "94%", "status": "Ready to Pitch"},
+            {"name": "Stark Industries Trust", "advisor": "Jeremy Sim", "aum": "$450M", "score": "88%", "status": "Warm"}
+        ],
+        "actions": [
+            {"task": "Draft Rebalancing Proposal", "client": "Bruce Wayne", "due": "Today 5PM"},
+            {"task": "Send Q3 Performance Audit docs", "client": "Apex Corp", "due": "Tomorrow 10AM"}
+        ],
+        "inbox": [
+            {"signal": "Urgent compliance KYC missing", "from": "Stefan Ho (Risk)", "urgency": "Critical"},
+            {"signal": "Complaint regarding billing delays", "from": "Bob (Acme Corp)", "urgency": "High"}
+        ]
     },
     "clients": {
         "Bruce Wayne": {
@@ -33,51 +59,57 @@ demo_state = {
             "status": "AI Triage",
             "module_a_insight": "Waiting for email...",
             "module_c_insight": "Waiting for transcript..."
+        },
+        "LexCorp Family Office": {
+            "department": "Corporate Dev",
+            "status": "Prospecting",
+            "module_a_insight": "No recent email.",
+            "module_c_insight": "Initial introductory call parsed."
+        },
+        "Stark Industries Trust": {
+            "department": "Investments",
+            "status": "Active",
+            "module_a_insight": "Reviewing standard reporting.",
+            "module_c_insight": "Preparing for Q3 performance review."
+        },
+        "Apex Corp": {
+            "department": "Ops & Compliance",
+            "status": "Active Risk",
+            "module_a_insight": "Missing KYC documentation.",
+            "module_c_insight": "Discussed regulatory filings."
         }
     }
 }
 
-class UpdateRequest(BaseModel):
-    client_name: str
-    module: str # "A" or "C"
-    new_status: str
-    insight: str
+# === SLACK SOCKET MODE COMMAND HANDLERS ===
 
-# --- NEW: SLACK SLASH COMMAND ENDPOINT ---
-@app.post("/slack/command")
-async def handle_slack_command(
-    command: str = Form(...),
-    text: str = Form(...)
-):
-    # Extract the client name (e.g., text="Apex Corp - missing docs" -> "Apex Corp")
+@slack_app.command("/flag-compliance")
+def handle_flag_compliance(ack, respond, command):
+    ack()
+    text = command.get("text", "")
     client_name = text.split("-")[0].strip() if "-" in text else text.strip()
 
-    # COMMAND 1: THE DASHBOARD MANIPULATOR
-    if command == "/flag-compliance":
-        # 1. Update the React Dashboard state!
-        if client_name in demo_state["clients"]:
-            demo_state["clients"][client_name]["status"] = "Compliance Hold"
-            # we'll append to module_a_insight for visibility
-            demo_state["clients"][client_name]["module_a_insight"] = f"Flagged via Slack: {text}"
-            demo_state["kpis"]["risk_flags"] += 1
+    if client_name in demo_state["clients"]:
+        demo_state["clients"][client_name]["status"] = "Compliance Hold"
+        demo_state["clients"][client_name]["module_a_insight"] = f"Flagged via Slack: {text}"
+        demo_state["kpis"]["risk_flags"] += 1
 
-        # 2. Reply to Slack
-        return {
-            "response_type": "in_channel",
-            "text": f"🚨 *{client_name}* has been locked. Escalated to Stefan Ho (Risk & Compliance)."
-        }
+    respond(f"[ALERT] *{client_name}* has been locked. Escalated to Stefan Ho (Risk & Compliance).")
 
-    # COMMAND 2: THE SYNTHESIZER
-    elif command == "/prep-meeting":
-        # Hardcoded for the video demo speed!
-        return {
-            "response_type": "in_channel",
-            "text": f"📝 *Meeting Prep: {client_name}*\n• *Last Touchpoint:* Emailed yesterday expressing anxiety over tech stock volatility.\n• *Past Context:* Discussed shifting 15% to Private Credit.\n• *AI Recommended Action:* Propose BugleRock Yield Fund."
-        }
+@slack_app.command("/prep-meeting")
+def handle_prep_meeting(ack, respond, command):
+    ack()
+    text = command.get("text", "")
+    client_name = text.split("-")[0].strip() if "-" in text else text.strip()
+    respond(f"[MEETING PREP] *For: {client_name}*\n• *Last Touchpoint:* Emailed yesterday expressing anxiety over tech stock volatility.\n• *Past Context:* Discussed shifting 15% to Private Credit.\n• *AI Recommended Action:* Propose BugleRock Yield Fund.")
 
-    # COMMAND 3: THE HEAVY LIFTER (CLAUDE AI)
-    elif command == "/draft-rebalance":
-        # Use Claude Haiku because Slack times out if it takes longer than 3 seconds!
+
+@slack_app.command("/draft-rebalance")
+def handle_draft_rebalance(ack, respond, command):
+    ack("Generating draft, please wait...") # Acknowledge immediately to avoid timeout
+    try:
+        text = command.get("text", "")
+        client_name = text.split("-")[0].strip() if "-" in text else text.strip()
         prompt = f"Write a short, professional wealth management email to {client_name} suggesting a 5% shift from equities to fixed income. Sign it from Jeremy Sim, Head of Investments."
         
         message = client.messages.create(
@@ -86,13 +118,106 @@ async def handle_slack_command(
             messages=[{"role": "user", "content": prompt}]
         )
         draft = message.content[0].text if isinstance(message.content, list) else message.content.text
+        respond(f"[DRAFT] *Generated for {client_name}*\n\n```\n{draft}\n```\n\n_Review and send via Zoho CRM._")
+    except Exception as e:
+        logging.error(f"Error drafting rebalance: {e}\n{traceback.format_exc()}")
+        respond("[ERROR] System Alert: Could not generate draft due to an error.")
 
-        return {
-            "response_type": "in_channel",
-            "text": f"✉️ *Draft Generated for {client_name}*\n\n```\n{draft}\n```\n\n_Review and send via Zoho CRM._"
-        }
+@slack_app.command("/morning-briefing")
+def handle_morning_briefing(ack, respond, command):
+    ack()
+    try:
+        sgt_time = datetime.now(ZoneInfo("Asia/Singapore")).strftime('%H:%M SGT on %B %d, %Y')
+        data = demo_state.get("rich_briefing", {"leads": [], "actions": [], "inbox": []})
+        
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "[MORNING BRIEFING] BugleRock Executive Briefing", "emoji": False}
+            },
+            {
+                "type": "context",
+                "elements": [{"type": "mrkdwn", "text": f"*Generated:* {sgt_time} | *Advisor:* Subiksha"}]
+            },
+            {"type": "divider"},
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "*[PROSPECTS] Top Scored Prospects (Module B)*\n_AI-routed based on Bandwidth Score (BWS)_"}
+            }
+        ]
+        
+        # Append Leads dynamically
+        for lead in data.get("leads", []):
+            blocks.append({
+                "type": "section",
+                "fields": [
+                    {"type": "mrkdwn", "text": f"*{lead['name']}*\nAdvisor: {lead['advisor']}"},
+                    {"type": "mrkdwn", "text": f"*AUM:* {lead['aum']} | *Score:* {lead['score']}\n*Status:* `{lead['status']}`"}
+                ]
+            })
+            
+        blocks.append({"type": "divider"})
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*[TASKS] Meeting Intelligence Actions (Module C)*\n_Extracted from yesterday's transcripts_"}
+        })
+        
+        # Append Actions
+        for action in data.get("actions", []):
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"[*] *{action['task']}*\n_Client: {action['client']} | Due: {action['due']}_"}
+            })
 
-    return {"text": "Unknown command."}
+        blocks.append({"type": "divider"})
+        blocks.append({
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*[ALERTS] High-Urgency Inbound Signals (Module A)*\n_Auto-classified from Inbox_"}
+        })
+        
+        # Append Inbox
+        for msg in data.get("inbox", []):
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"[!] *{msg['signal']}*\n_From: {msg['from']} | Urgency: {msg['urgency']}_"}
+            })
+            
+        # Bolt's implementation returns block kit payload directly over WebSockets via respond
+        respond(blocks=blocks)
+        
+    except Exception as e:
+        logging.error(f"Error in /morning-briefing: {str(e)}\n{traceback.format_exc()}")
+        respond("[ERROR] Error generating rich morning briefing. Check logs.")
+
+# --- FASTAPI SETUP ---
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start Socket Mode Handler in a background thread so it doesn't block FastAPI
+    handler = SocketModeHandler(slack_app, os.environ.get("SLACK_APP_TOKEN"))
+    thread = threading.Thread(target=handler.start)
+    thread.daemon = True
+    thread.start()
+    logging.info("Slack Bolt Socket Mode started in background.")
+    yield
+    # We could implement graceful socket shutdown here if needed
+
+app = FastAPI(lifespan=lifespan)
+
+# Allow React to talk to this API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class UpdateRequest(BaseModel):
+    client_name: str
+    module: str # "A" or "C"
+    new_status: str
+    insight: str
 
 @app.get("/api/state")
 def get_state():

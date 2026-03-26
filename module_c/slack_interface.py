@@ -101,7 +101,7 @@ def send_draft_for_approval(channel_id: str, draft_text: str):
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": "📝 New Follow-up Email Draft Generated",
+                "text": "[DRAFT] New Follow-up Email Draft Generated",
                 "emoji": True
             }
         },
