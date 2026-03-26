@@ -1,5 +1,6 @@
 import os
 import time
+import requests
 import logging
 import threading
 from datetime import datetime
@@ -62,6 +63,18 @@ def process_new_meeting(transcript: str, metadata: dict):
     sync_to_zoho(insights, contact_id=zoho_id)
     publish_meeting_event(insights, metadata)
     
+    # --- PHASE 5: Tell the Dashboard! ---
+    try:
+        requests.post("http://localhost:8005/api/trigger", json={
+            "client_name": "Bruce Wayne", # Hardcoded for dashboard demo visualization
+            "module": "C",
+            "new_status": "Advisor Action", # Moves the card on the Kanban board!
+            "insight": insights.key_takeaways[0] if insights.key_takeaways else "Meeting analyzed successfully."
+        })
+        logger.info("Successfully sent update to the Dashboard!")
+    except Exception as e:
+        logger.error(f"Could not reach dashboard: {e}")
+        
     logger.info("--- Meeting Pipeline Execution Complete ---")
 
 # ==========================================
