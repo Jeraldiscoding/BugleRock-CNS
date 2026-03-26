@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import requests
 from typing import List, Optional
 from email.utils import parseaddr
 
@@ -130,6 +131,26 @@ async def gmail_webhook(payload: EmailWebhookPayload):
         sender_name=display_name if display_name else None,
     )
 
+    # Convert AI extractions to a combined string to pass to the UI
+    action_items = []
+    for r in results:
+        if hasattr(r, 'entities') and r.entities and r.entities.action_items:
+            action_items.extend(r.entities.action_items)
+            
+    email_summary = " ".join(action_items) if action_items else "Email processed successfully. Extracted intent and sentiment."
+    
+    # Tell the Dashboard!
+    try:
+        requests.post("http://localhost:8005/api/trigger", json={
+            "client_name": display_name or "Bruce Wayne", # Real dynamically populated name if parsed, or fallback
+            "module": "A",
+            "new_status": "Advisor Action", # Moves the card on the Kanban board!
+            "insight": email_summary
+        })
+        print("Successfully sent update to the Dashboard!")
+    except Exception as e:
+        print("Could not reach dashboard:", e)
+
     return {
         "status": "accepted",
         "message": "Email received",
@@ -164,6 +185,25 @@ async def fireflies_webhook(payload: FirefliesWebhookPayload):
         email_address=payload.email_address,
         company_name=payload.company_name,
     )
+
+    action_items = []
+    for r in results:
+        if hasattr(r, 'entities') and r.entities and r.entities.action_items:
+            action_items.extend(r.entities.action_items)
+            
+    transcript_summary = " ".join(action_items) if action_items else "Meeting processed successfully."
+
+    # Tell the Dashboard!
+    try:
+        requests.post("http://localhost:8005/api/trigger", json={
+            "client_name": payload.company_name or "Bruce Wayne", # Real dynamically populated name or fallback
+            "module": "C",
+            "new_status": "Advisor Action", 
+            "insight": transcript_summary
+        })
+        logger.info("Successfully sent transcript update to Dashboard!")
+    except Exception as e:
+        logger.error(f"Could not reach dashboard: {e}")
 
     return {
         "status": "accepted",
