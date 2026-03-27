@@ -105,7 +105,7 @@ export default function ExecutiveDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:8005/api/state');
+        const response = await fetch('http://localhost:8000/api/state');
         const data = await response.json();
         setLiveData(data);
       } catch (err) {

@@ -4,8 +4,10 @@ import email
 import imaplib
 import logging
 import requests
+import json
 from email.header import decode_header
 from dotenv import load_dotenv
+from anthropic import Anthropic
 
 # Load environment variables
 load_dotenv()
@@ -15,7 +17,10 @@ logger = logging.getLogger(__name__)
 
 GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
-WEBHOOK_URL = "http://localhost:8000/api/gmail-webhook"
+WEBHOOK_URL = "http://localhost:8000/api/trigger"
+
+# Initialize Anthropic Client
+anthropic_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 def clean_header(header_text):
     """Decodes email headers (like subject and sender) correctly."""
@@ -103,39 +108,76 @@ def listen_to_inbox():
                         
                         logger.info(f"Processing Email -> From: {sender} | Subject: {subject}")
                         
-                        # Pack into exact schema expected by Module A
+                        # AI Classification via Anthropic
+                        ai_prompt = f"""
+                        Analyze this email and classify it based on sender/subject/body.
+                        Sender: {sender}
+                        Subject: {subject}
+                        Body: {body}
+                        
+                        RULES:
+                        - If the email is from a team member or addresses internal operations (like "Team", "Internal", "Need this for a meeting"), set category to "Internal".
+                        - If the email is from a potential new client, set category to "Prospect".
+                        - If the email is from an existing client, set category to "Client".
+                        - If the email has a tight deadline ("next hour", "today", "ASAP") or severe negative sentiment, set urgency to "Urgent". Otherwise "Non-Urgent".
+                        
+                        Return EXACTLY a JSON dictionary like this (and nothing else):
+                        {{
+                            "category": "Client" | "Prospect" | "Internal",
+                            "urgency": "Urgent" | "Non-Urgent",
+                            "insight": "1 short sentence summarizing the email intent."
+                        }}
+                        """
+                        
+                        category = "Client"
+                        urgency = "Non-Urgent"
+                        insight = f"Received email from {sender}."
+                        
+                        try:
+                            msg_response = anthropic_client.messages.create(
+                                model="claude-haiku-4-5-20251001",
+                                max_tokens=200,
+                                temperature=0,
+                                messages=[{"role": "user", "content": ai_prompt}]
+                            )
+                            response_text = msg_response.content[0].text
+                            
+                            # Clean up potential markdown formatting block ```json ... ```
+                            cleaned_text = response_text.replace("```json", "").replace("```", "").strip()
+                            
+                            import json
+                            ai_data = json.loads(cleaned_text)
+                            category = ai_data.get("category", "Client")
+                            urgency = ai_data.get("urgency", "Non-Urgent")
+                            insight = ai_data.get("insight", insight)
+                            logger.info(f"AI Classification -> Category: {category} | Urgency: {urgency}")
+                        except Exception as e:
+                            logger.error(f"AI Classification failed (Raw response: {response_text if 'response_text' in locals() else 'None'}): {e}")
+                        
+                        # Decide Gmail Folder based on User Request
+                        if urgency.lower() == "urgent":
+                            dest_folder = "Urgent"
+                        elif category.lower() == "internal":
+                            dest_folder = "Internal"
+                        elif category.lower() == "prospect":
+                            dest_folder = "Prospects"
+                        elif category.lower() == "client":
+                            dest_folder = "Clients"
+                        else:
+                            dest_folder = "Non-Urgent"
+                            
+                        # Pack into exact schema expected by React Dashboard api_bridge.py
                         payload = {
-                            "sender": sender,
-                            "subject": subject,
-                            "body": body,
-                            "attachments": []
+                            "client_name": "Bruce Wayne", # Hardcoded for demo/UI matching
+                            "module": "A",
+                            "new_status": "AI Triage",
+                            "insight": f"[{urgency}] {insight}"
                         }
                         
                         # Send to local FastAPI webhook
                         try:
                             wh_resp = requests.post(WEBHOOK_URL, json=payload, timeout=60)
                             if wh_resp.status_code == 200:
-                                data = wh_resp.json()
-                                extractions = data.get("extractions", [])
-                                
-                                dest_folder = "AI_Processed" # Default destination
-                                
-                                if extractions:
-                                    ext_type = extractions[0].get("type", "").lower()
-                                    ext_urgency = extractions[0].get("urgency", "").lower()
-                                    
-                                    logger.info(f"AI Classification -> Type: {ext_type} | Urgency: {ext_urgency}")
-                                    
-                                    # Route based on classification
-                                    if ext_urgency == "high":
-                                        dest_folder = "Urgent"
-                                    elif "prospect" in ext_type:
-                                        dest_folder = "Prospects"
-                                    elif "internal" in ext_type:
-                                        dest_folder = "Internal"
-                                    elif "client" in ext_type:
-                                        dest_folder = "Clients"
-                                
                                 logger.info(f"Routing email to folder: {dest_folder}")
                                 
                                 # Attempt to create the folder if it doesn't exist gently
@@ -170,3 +212,4 @@ def listen_to_inbox():
 
 if __name__ == "__main__":
     listen_to_inbox()
+

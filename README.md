@@ -131,3 +131,4 @@ All commands ack within 3 seconds and return Block Kit responses (no emojis, ent
 - AI failures: check `ANTHROPIC_API_KEY` and network egress.
 - Frontend 404: ensure `npm run dev` is running in `frontend-app/`.
 - If secrets were ever committed, rotate them immediately.
+# G12-Rockathon

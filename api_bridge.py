@@ -18,6 +18,12 @@ from email.message import EmailMessage
 from email.mime.text import MIMEText
 import requests
 
+import ssl
+import certifi
+
+# This forces the SSL context to use certifi's certificates
+ssl._create_default_https_context = ssl._create_unverified_context
+
 # --- REAL EMAIL DISPATCHER (SMTP via Gmail) ---
 def send_real_email_via_gmail(draft_text: str, client_name: str):
     gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD")
